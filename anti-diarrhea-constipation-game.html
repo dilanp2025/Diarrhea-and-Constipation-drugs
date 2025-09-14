@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Diarrhea & Constipation — Drag & Drop Match</title>
+  <style>
+    :root { --bg:#0b1324; --card:#111a33; --ink:#e8eefc; --muted:#9fb2e0; --accent:#8ab4ff; --good:#2ecc71; --bad:#e74c3c; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: linear-gradient(180deg, #0b1324 0%, #0c183a 100%); color: var(--ink);
+      display: flex; flex-direction: column; align-items: stretch;
+    }
+    header { padding: 1.2rem 1rem 0.4rem; text-align: center; }
+    h1 { margin: 0 0 .25rem; font-size: clamp(1.35rem, 2.8vw, 2rem); letter-spacing: .2px; }
+    .subtitle { color: var(--muted); font-size: .95rem; }
+    .wrap {
+      display: grid; gap: 1rem; grid-template-columns: 1fr; padding: 1rem;
+      max-width: 1100px; width: 100%; margin: 0 auto; box-sizing: border-box;
+    }
+    @media (min-width: 860px) { .wrap { grid-template-columns: 1fr 1fr; } }
+    .panel {
+      background: rgba(17,26,51,.7); border: 1px solid rgba(138,180,255,.15);
+      border-radius: 16px; padding: .85rem; backdrop-filter: blur(6px);
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .panel h2 { margin: .25rem .25rem .75rem; font-size: 1.02rem; color: var(--muted); font-weight: 600; }
+    .list { display: grid; gap: .6rem; grid-auto-rows: minmax(48px, auto); }
+    .pill, .drop {
+      border-radius: 12px; padding: .65rem .75rem; border: 1px dashed rgba(138,180,255,.35);
+      background: rgba(255,255,255,.03);
+    }
+    .pill {
+      cursor: grab; user-select: none; font-weight: 600; letter-spacing: .2px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .pill:active { cursor: grabbing; }
+    .cat { font-size: .72rem; color: var(--muted); margin-left: .5rem; }
+    .drop {
+      min-height: 64px; display: grid; align-items: center;
+      transition: background .15s ease, border-color .15s ease;
+    }
+    .drop.hover { background: rgba(138,180,255,.08); border-color: var(--accent); }
+    .drop.filled { border-style: solid; }
+    .desc { font-size: .9rem; line-height: 1.25rem; }
+    .controls {
+      display: flex; gap: .6rem; flex-wrap: wrap; justify-content: center; padding: .6rem 1rem 1rem;
+    }
+    button {
+      background: var(--card); color: var(--ink); border: 1px solid rgba(138,180,255,.3);
+      padding: .6rem .9rem; border-radius: 12px; font-weight: 600; letter-spacing: .2px;
+      cursor: pointer; transition: transform .05s ease, background .15s ease;
+    }
+    button:hover { background: rgba(255,255,255,.05); }
+    button:active { transform: translateY(1px); }
+    .result { text-align: center; font-weight: 700; padding: .5rem 0; }
+    .correct { color: var(--good); } .incorrect { color: var(--bad); }
+    footer { text-align: center; color: var(--muted); font-size: .8rem; padding-bottom: 1rem; }
+    .tag {
+      display:inline-block; padding:.1rem .35rem; margin-left:.25rem; border:1px solid rgba(138,180,255,.3);
+      border-radius:8px; font-size:.7rem; color:var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Diarrhea & Constipation – Drug Match</h1>
+    <div class="subtitle">Drag each <b>drug</b> (left) onto its correct <b>description</b> (right). The order shuffles on each load.</div>
+  </header>
+
+  <div class="controls">
+    <button id="reshuffleBtn" title="Randomize again">🔀 Shuffle</button>
+    <button id="resetBtn" title="Clear your matches">♻️ Reset</button>
+    <div class="result" id="score"></div>
+  </div>
+
+  <main class="wrap">
+    <section class="panel">
+      <h2>Drugs</h2>
+      <div id="drugList" class="list" aria-label="Drugs to drag" aria-describedby="score"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Descriptions</h2>
+      <div id="descList" class="list" aria-label="Descriptions to drop on"></div>
+    </section>
+  </main>
+
+  <footer>Tip: You can reload or hit <b>Shuffle</b> to reshuffle both columns.</footer>
+
+<script>
+// Data — concise, exam-friendly descriptions. Each includes its category.
+const DRUGS = [
+  // DIARRHEA-FOCUSED
+  {
+    name: "Loperamide",
+    category: "Opioid Agonist (peripheral)",
+    description: "Peripheral μ-opioid agonist that slows GI motility to reduce diarrhea; poor CNS penetration minimizes abuse."
+  },
+  {
+    name: "Diphenoxylate",
+    category: "Opioid Agonist (peripheral)",
+    description: "μ-opioid agonist that slows intestinal transit for diarrhea; often formulated with atropine to discourage misuse."
+  },
+  {
+    name: "Eluxadoline",
+    category: "Opioid Agonist (mixed)",
+    description: "Mixed μ/κ agonist & δ antagonist acting in the gut to reduce diarrhea (IBS-D); avoid in patients without gallbladder or with biliary/pancreatic disease."
+  },
+  {
+    name: "Alosetron",
+    category: "Serotonin (5-HT3) Antagonist",
+    description: "Blocks 5‑HT3 receptors to slow colonic transit and relieve IBS‑D; restricted use due to ischemic colitis risk."
+  },
+  {
+    name: "Crofelemer",
+    category: "Chloride Channel Inhibitor",
+    description: "Inhibits CFTR & CaCC chloride channels in the intestine to decrease fluid secretion; used for noninfectious diarrhea (e.g., HIV/ART‑related)."
+  },
+  {
+    name: "Bismuth subsalicylate",
+    category: "Prostaglandin Inhibitor / Antisecretory",
+    description: "Antisecretory & anti‑inflammatory effects via prostaglandin inhibition; binds toxins—helpful in traveler’s diarrhea."
+  },
+
+  // CONSTIPATION-FOCUSED
+  {
+    name: "Methylnaltrexone",
+    category: "Peripheral Opioid Antagonist",
+    description: "Peripherally acting μ‑opioid receptor antagonist that reverses opioid‑induced constipation without affecting analgesia."
+  },
+  {
+    name: "Naloxegol",
+    category: "Peripheral Opioid Antagonist",
+    description: "PEGylated naloxone derivative that antagonizes peripheral μ‑receptors to treat opioid‑induced constipation."
+  },
+  {
+    name: "Naldemedine",
+    category: "Peripheral Opioid Antagonist",
+    description: "Peripheral μ‑receptor blocker for opioid‑induced constipation; minimal CNS penetration preserves analgesia."
+  },
+  {
+    name: "Alvimopan",
+    category: "Peripheral Opioid Antagonist",
+    description: "Short‑term inpatient use to accelerate GI recovery after bowel surgery; peripheral μ‑antagonist."
+  },
+  {
+    name: "Linaclotide",
+    category: "Guanylate Cyclase‑C Agonist",
+    description: "Activates GC‑C on enterocytes → ↑cGMP → ↑chloride/bicarbonate secretion and motility; chronic idiopathic constipation & IBS‑C."
+  },
+  {
+    name: "Plecanatide",
+    category: "Guanylate Cyclase‑C Agonist",
+    description: "Uroguanylin analog that stimulates GC‑C to increase intestinal fluid and transit; for CIC and IBS‑C."
+  },
+  {
+    name: "Lubiprostone",
+    category: "Selective Chloride (C2) Channel Activator",
+    description: "Activates ClC‑2 channels to enhance intestinal fluid secretion and motility; for CIC, OIC, and IBS‑C (women)."
+  },
+  {
+    name: "Prucalopride",
+    category: "Serotonin Type‑4 (5‑HT4) Partial Agonist",
+    description: "Prokinetic 5‑HT4 agonist that enhances colonic peristalsis; used for chronic idiopathic constipation."
+  }
+];
+
+// Utility shuffles (Fisher–Yates)
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+const drugListEl = document.getElementById('drugList');
+const descListEl = document.getElementById('descList');
+const scoreEl = document.getElementById('score');
+
+let matched = new Set();
+
+function render() {
+  matched.clear();
+  scoreEl.textContent = "";
+
+  // Shuffle both columns on each render
+  const left = shuffle(DRUGS);
+  const right = shuffle(DRUGS);
+
+  drugListEl.innerHTML = "";
+  descListEl.innerHTML = "";
+
+  // Left: draggable pills (drug names)
+  left.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'pill';
+    el.draggable = true;
+    el.id = `drug-${d.name.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`;
+    el.innerHTML = `<span>${d.name}</span><span class="tag">drag me</span>`;
+
+    el.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', d.name);
+      // allow dropEffect hints
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    drugListEl.appendChild(el);
+  });
+
+  // Right: dropzones with descriptions
+  right.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'drop';
+    el.dataset.drug = d.name;
+
+    const caption = document.createElement('div');
+    caption.className = 'desc';
+    caption.innerHTML = `<b>${d.category}:</b> ${d.description}`;
+    el.appendChild(caption);
+
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('hover'); });
+    el.addEventListener('dragleave', () => el.classList.remove('hover'));
+    el.addEventListener('drop', e => {
+      e.preventDefault();
+      el.classList.remove('hover');
+      const drugName = e.dataTransfer.getData('text/plain');
+      const ok = (drugName === el.dataset.drug);
+      const dragged = document.getElementById(`drug-${drugName.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`);
+      if (!dragged) return;
+
+      if (ok) {
+        el.classList.add('filled');
+        el.style.borderColor = 'rgba(46, 204, 113, .8)';
+        el.style.background = 'rgba(46, 204, 113, .08)';
+        dragged.style.opacity = '.35';
+        dragged.draggable = false;
+        dragged.querySelector('.tag').textContent = 'matched';
+        matched.add(drugName);
+        updateScore();
+      } else {
+        // brief shake / feedback
+        el.animate([{transform:'translateX(0)'},{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'translateX(0)'}], {duration:180, iterations:1});
+        el.style.borderColor = 'rgba(231, 76, 60, .8)';
+        setTimeout(()=>{ el.style.borderColor = 'rgba(138,180,255,.35)'; }, 220);
+      }
+    });
+
+    descListEl.appendChild(el);
+  });
+}
+
+function updateScore() {
+  const total = DRUGS.length;
+  const n = matched.size;
+  const done = n === total;
+  scoreEl.innerHTML = done ? `<span class="correct">🎉 Perfect! ${n}/${total} matched.</span>`
+                           : `<span>${n}/${total} correct — keep going!</span>`;
+}
+
+document.getElementById('reshuffleBtn').addEventListener('click', render);
+document.getElementById('resetBtn').addEventListener('click', render);
+
+// Initial render (random every load)
+render();
+</script>
+</body>
+</html>
